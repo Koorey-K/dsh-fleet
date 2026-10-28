@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSH Fleet · 远程操作台</title>
+<style>
+  :root{
+    --bg:#07090e; --bg2:#0b0e15; --panel:#0f131c; --panel2:#141a26; --panel3:#1a2231;
+    --line:#1e2735; --line2:#2a3547;
+    --text:#e9edf5; --dim:#8b94a7; --dim2:#5a6375;
+    --accent:#5b8cff; --ok:#35d07f; --warn:#f5b942; --bad:#ff6b7d;
+    --mono:ui-monospace,SFMono-Regular,Consolas,"Cascadia Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.7 var(--sans);-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#222c3d;border-radius:10px;border:2px solid transparent;background-clip:content-box}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--text);
+    padding:7px 13px;border-radius:10px;transition:background .15s,border-color .15s,transform .06s}
+  button:hover{background:var(--panel3);border-color:#35425a}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(180deg,#6a97ff,#4478f0);border-color:#4478f0;color:#fff;font-weight:600;
+    box-shadow:0 6px 18px -8px rgba(68,120,240,.9)}
+  button.ghost{background:transparent;border-color:transparent;color:var(--dim)}
+  button.ghost:hover{background:var(--panel2);color:var(--text)}
+  button.tiny{padding:4px 10px;font-size:12px;border-radius:8px}
+  button.danger{color:#ffc0c8;border-color:#3b2530;background:#1c141a}
+  input,textarea{font:inherit;background:#0a0e15;color:var(--text);border:1px solid var(--line2);
+    border-radius:12px;padding:11px 13px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus,textarea:focus{border-color:#3b5a94;box-shadow:0 0 0 3px rgba(91,140,255,.14)}
+  .hidden{display:none!important}
+
+  #login{height:100%;display:grid;place-items:center;
+    background:radial-gradient(900px 500px at 50% -10%,rgba(91,140,255,.16),transparent 60%),var(--bg)}
+  .login-card{width:min(400px,92vw);background:linear-gradient(180deg,#111722,#0d1119);border:1px solid var(--line2);
+    border-radius:20px;padding:30px;box-shadow:0 30px 80px -20px #000}
+  .login-card .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#5b8cff,#8b5cf6);
+    display:grid;place-items:center;font-weight:800;margin-bottom:16px;box-shadow:0 10px 30px -10px #5b8cff}
+  .login-card h1{font-size:21px;margin:0 0 4px}
+  .login-card p{margin:0 0 22px;color:var(--dim);font-size:13px}
+  .login-card .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:10px}
+
+  #app{height:100%;display:grid;grid-template-rows:58px 1fr;
+    grid-template-columns:280px minmax(0,1fr) 0;
+    grid-template-areas:"head head head" "side main drawer";transition:grid-template-columns .2s}
+  #app.drawer-open{grid-template-columns:280px minmax(0,1fr) 340px}
+  header{grid-area:head;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--line);
+    background:rgba(11,14,21,.9);backdrop-filter:blur(8px);z-index:10}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+  .brand .dotm{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,#5b8cff,#8b5cf6);
+    box-shadow:0 6px 16px -6px #5b8cff}
+  .badge{font-size:11.5px;padding:2px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--dim);
+    background:#0d1119;display:inline-flex;align-items:center;gap:6px}
+  .badge.ok{color:#9ce7bd;border-color:#1e3a2c;background:#0e1a14}
+  .badge.warn{color:#f3d08a;border-color:#3a2f18;background:#1a150c}
+  .spacer{flex:1}
+
+  aside{grid-area:side;border-right:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0}
+  .side-h{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px;
+    color:var(--dim);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
+  #nodes{overflow:auto;padding:0 12px 12px;flex:1}
+  .node{position:relative;border:1px solid transparent;border-radius:var(--r);padding:11px 12px;margin-bottom:8px;
+    cursor:pointer;transition:.16s;background:#0d121b}
+  .node:hover{background:#111826;border-color:#22304a}
+  .node.active{background:linear-gradient(180deg,#121c2e,#101724);border-color:#2f4a78;
+    box-shadow:0 0 0 1px rgba(91,140,255,.18),0 10px 24px -18px #5b8cff}
+  .node .r1{display:flex;align-items:center;gap:9px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#39435a;flex:none}
+  .dot.on{background:var(--ok);box-shadow:0 0 10px rgba(53,208,127,.8)}
+  .node .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .node .meta{color:var(--dim2);font-size:11.5px;margin-top:5px;font-family:var(--mono);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .node .bars{display:flex;gap:5px;margin-top:7px}
+  .bar{height:4px;border-radius:3px;background:#1c2534;flex:1;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#3f7bf0,#7c5cff)}
+  .node .acts{position:absolute;right:8px;top:9px;display:none;gap:4px}
+  .node:hover .acts{display:flex}
+  .icon{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:12px;
+    border:1px solid var(--line2);background:#111826;color:var(--dim);padding:0}
+  .icon:hover{color:#fff;border-color:#3b5a94}
+
+  main{grid-area:main;display:flex;flex-direction:column;min-height:0;
+    background:radial-gradient(1000px 460px at 60% -10%,rgba(91,140,255,.07),transparent 60%),var(--bg)}
+  #chat{flex:1;overflow:auto;padding:26px 0 8px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 26px}
+
+  .empty{max-width:600px;margin:9vh auto;text-align:center;color:var(--dim)}
+  .empty .big{width:64px;height:64px;margin:0 auto 18px;border-radius:20px;
+    background:linear-gradient(135deg,rgba(91,140,255,.25),rgba(139,92,246,.25));
+    border:1px solid #2a3b5e;display:grid;place-items:center;font-size:26px}
+  .empty h2{color:var(--text);font-size:22px;margin:0 0 8px}
+  .empty p{margin:0 0 22px;font-size:14px}
+  .chips{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+  .chip{border:1px solid var(--line2);border-radius:999px;padding:7px 14px;font-size:12.5px;color:var(--dim);
+    cursor:pointer;background:#0c111a;transition:.15s}
+  .chip:hover{color:var(--text);border-color:#3b5a94;background:#111a28}
+
+  .msg{margin:0 0 22px}
+  .msg.user{display:flex;justify-content:flex-end}
+  .bubble{background:linear-gradient(180deg,#1b2740,#151d2e);border:1px solid #2b3f62;
+    border-radius:16px 16px 5px 16px;padding:11px 15px;max-width:78%;white-space:pre-wrap}
+  .bot-h{display:flex;align-items:center;gap:9px;color:var(--dim);font-size:12.5px;margin-bottom:9px}
+  .avatar{width:20px;height:20px;border-radius:7px;background:linear-gradient(135deg,#5b8cff,#8b5cf6)}
+  .answer{background:linear-gradient(180deg,#101722,#0d131c);border:1px solid var(--line2);
+    border-radius:var(--r);padding:15px 17px;white-space:pre-wrap;line-height:1.75}
+  .cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;
+    margin-left:4px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  .step{border:1px solid var(--line2);border-radius:var(--r);background:var(--panel);margin:10px 0;overflow:hidden}
+  .step .h{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--panel2);cursor:pointer}
+  .step .h:hover{background:var(--panel3)}
+  .tag{font-size:11px;padding:2px 9px;border-radius:7px;background:#17223a;color:#9fc0ff;
+    border:1px solid #27395a;flex:none}
+  .tag.run{background:#2a2110;color:#f5c268;border-color:#463818}
+  .step .h code{font-family:var(--mono);font-size:12.5px;color:#c9d6ee;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .step .h .meta{color:var(--dim2);font-size:11.5px;flex:none;font-family:var(--mono)}
+  .step .why{padding:7px 14px;color:var(--dim);font-size:12px;border-top:1px solid var(--line);background:#0b101a}
+  .step pre{margin:0;padding:13px 15px;border-top:1px solid var(--line);background:#060910;color:#b9c6dd;
+    font:12.5px/1.62 var(--mono);white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto}
+
+  .composer{border-top:1px solid var(--line);background:rgba(11,14,21,.92);padding:14px 0 18px}
+  .composer .wrap{display:grid;gap:10px}
+  .crow{display:flex;gap:10px;align-items:flex-end}
+  textarea#prompt{min-height:54px;max-height:210px;resize:none;line-height:1.55;padding:13px 15px;border-radius:14px}
+  .modes{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .mode{padding:5px 12px;border-radius:9px;font-size:12.5px;border:1px solid var(--line2);color:var(--dim);
+    cursor:pointer;background:#0c111a;transition:.15s}
+  .mode:hover{color:var(--text)}
+  .mode.on{color:#cfe0ff;border-color:#3b5a94;background:#13203a}
+  .hint{color:var(--dim2);font-size:11.5px}
+
+  #drawer{grid-area:drawer;border-left:1px solid var(--line);background:var(--bg2);overflow:auto;min-width:0}
+  #drawer .sec{padding:16px;border-bottom:1px solid var(--line)}
+  #drawer h4{margin:0 0 10px;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .kv{display:grid;grid-template-columns:84px 1fr;gap:6px 10px;font-size:12.5px;font-family:var(--mono)}
+  .kv .k{color:var(--dim2)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .qa{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line2);border-radius:10px;
+    background:#0d121b;cursor:pointer;font-size:12.5px;color:#c3cde0;transition:.15s}
+  .qa:hover{border-color:#3b5a94;background:#111a28;color:#fff}
+  .taskrow{display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 0;border-bottom:1px dashed #1a2231;color:var(--dim)}
+  .taskrow:last-child{border:none}
+  .taskrow .st{width:6px;height:6px;border-radius:50%;background:#3a4356;flex:none}
+  .taskrow .st.done{background:var(--ok)}
+  .taskrow .st.running{background:var(--warn)}
+
+  #modal{position:fixed;inset:0;background:rgba(4,6,10,.7);backdrop-filter:blur(4px);display:grid;place-items:center;z-index:60}
+  .modal-card{width:min(600px,94vw);background:linear-gradient(180deg,#111722,#0d1119);border:1px solid var(--line2);
+    border-radius:18px;padding:24px;box-shadow:0 40px 100px -30px #000}
+  .modal-card h3{margin:0 0 12px;font-size:17px}
+  .modal-card pre{background:#060910;border:1px solid var(--line);border-radius:11px;padding:13px;overflow:auto;
+    max-height:260px;font:12.5px/1.6 var(--mono);color:#c9d6ee}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#141c2a;
+    border:1px solid #2b3a55;border-radius:11px;padding:10px 18px;font-size:13px;opacity:0;transition:.22s;
+    pointer-events:none;z-index:70}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(max-width:1180px){#app.drawer-open{grid-template-columns:280px minmax(0,1fr) 0}}
+  @media(max-width:900px){
+    #app,#app.drawer-open{grid-template-columns:1fr;grid-template-areas:"head" "main"}
+    aside{position:fixed;left:0;top:58px;bottom:0;width:280px;transform:translateX(-100%);transition:.2s;z-index:30}
+    aside.open{transform:none;box-shadow:30px 0 80px #000}
+  }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="login-card">
+    <div class="logo">D</div>
+    <h1>DSH Fleet</h1>
+    <p>远程操作台 · 输入口令进入</p>
+    <input id="pw" type="password" placeholder="口令" autocomplete="current-password">
+    <button class="primary" style="width:100%;margin-top:12px;height:42px" onclick="doLogin()">进入</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="brand"><span class="dotm"></span>DSH Fleet</div>
+    <span class="badge" id="bOnline">—</span>
+    <span class="badge" id="bModel">模型</span>
+    <div class="spacer"></div>
+    <button class="tiny ghost" onclick="toggleSide()">机器</button>
+    <button class="tiny ghost" onclick="toggleDrawer()">详情</button>
+    <button class="tiny" onclick="openEnroll()">接入新机器</button>
+    <button class="tiny ghost" onclick="logout()">退出</button>
+  </header>
+
+  <aside id="side">
+    <div class="side-h"><span>机器</span><span id="nodeCount">0</span></div>
+    <div id="nodes"></div>
+    <div style="padding:12px;border-top:1px solid var(--line);display:grid;gap:8px">
+      <button class="tiny" onclick="newChat()">＋ 新对话</button>
+    </div>
+  </aside>
+
+  <main>
+    <div id="chat"><div class="wrap" id="chatInner"></div></div>
+    <div class="composer">
+      <div class="wrap">
+        <div class="crow">
+          <textarea id="prompt" rows="1" placeholder="告诉它要做什么，比如：看看 C 盘哪些目录最占空间"></textarea>
+          <button class="tiny danger hidden" id="stopBtn" onclick="stopRun()" style="height:44px;padding:0 16px">停止</button>
+          <button class="primary" id="sendBtn" onclick="send()" style="height:44px;padding:0 20px">发送</button>
+        </div>
+        <div class="crow" style="justify-content:space-between">
+          <div class="modes">
+            <span class="mode on" data-mode="ai" onclick="setMode('ai')">它自己思考</span>
+            <span class="mode" data-mode="cmd" onclick="setMode('cmd')">直接执行</span>
+          </div>
+          <span class="hint">Enter 发送 · Shift+Enter 换行 · Ctrl+B 详情</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="drawer"></div>
+</div>
+
+<div id="modal" class="hidden" onclick="if(event.target.id==='modal')closeModal()">
+  <div class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="tiny" onclick="closeModal()">关闭</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var S = { token:'', nodes:[], selected:null, mode:'ai', items:[], config:{}, drawer:false };
+
+function $(s){ return document.querySelector(s); }
+function el(tag, cls, text){ var n=document.createElement(tag); if(cls) n.className=cls; if(text!=null) n.textContent=text; return n; }
+
+function toast(m){
+  var t=$('#toast'); t.textContent=m; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+async function api(path, opts){
+  opts = opts || {};
+  var res = await fetch(path, {
+    method: opts.method || 'GET',
+    headers: { 'content-type':'application/json', 'x-ctl-token': S.token },
+    body: opts.body
+  });
+  var text = await res.text();
+  var data=null; try{ data = text ? JSON.parse(text) : null; }catch(e){ data={raw:text}; }
+  if(res.status===401){ showLogin(); throw new Error('未登录'); }
+  if(!res.ok) throw new Error((data&&data.error)||('HTTP '+res.status));
+  return data;
+}
+
+function showLogin(){ $('#login').classList.remove('hidden'); $('#app').classList.add('hidden'); }
+
+async function doLogin(){
+  var pw = $('#pw').value;
+  try{
+    var res = await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:pw})});
+    var d = await res.json();
+    if(!res.ok) throw new Error(d.error||'口令不对');
+    S.token = d.token; localStorage.setItem('fleet-token', d.token);
+    $('#loginErr').textContent=''; boot();
+  }catch(e){ $('#loginErr').textContent = e.message; }
+}
+function logout(){ localStorage.removeItem('fleet-token'); location.reload(); }
+
+async function loadConfig(){
+  try{
+    S.config = await api('/api/config');
+    var b=$('#bModel');
+    b.textContent = S.config.mock ? '模拟模式' : ('模型 ' + S.config.model);
+    b.className = 'badge ' + (S.config.mock ? 'warn' : 'ok');
+  }catch(e){}
+}
+
+async function loadNodes(){
+  var d = await api('/api/nodes');
+  S.nodes = d.nodes || [];
+  var found=false;
+  S.nodes.forEach(function(n){ if(n.id===S.selected) found=true; });
+  if(!found) S.selected = S.nodes.length ? S.nodes[0].id : null;
+  renderNodes(); renderDrawer();
+  var on=0; S.nodes.forEach(function(n){ if(n.online) on++; });
+  var b=$('#bOnline'); b.textContent = on + '/' + S.nodes.length + ' 在线';
+  b.className = 'badge ' + (on ? 'ok' : '');
+}
+
+function renderNodes(){
+  var box=$('#nodes'); box.innerHTML=''; $('#nodeCount').textContent = S.nodes.length;
+  if(!S.nodes.length){
+    var e=el('div',null,'还没有机器。点右上「接入新机器」。');
+    e.style.cssText='color:#5a6375;font-size:12.5px;padding:8px 4px;line-height:1.7';
+    box.appendChild(e); return;
+  }
+  S.nodes.forEach(function(n){
+    var card = el('div','node'+(n.id===S.selected?' active':''));
+    var r1 = el('div','r1');
+    r1.appendChild(el('span','dot'+(n.online?' on':'')));
+    r1.appendChild(el('span','nm', n.label||n.id));
+    card.appendChild(r1);
+    var m = n.metrics||{};
+    var d0 = (m.disks||[])[0];
+    card.appendChild(el('div','meta',(m.hostname||'—') + (d0 ? ' · ' + d0.drive + ' ' + d0.freeGB + 'G' : '')));
+    if(d0){
+      var bars = el('div','bars'); var bar = el('div','bar'); var fill = el('i');
+      var pct = d0.totalGB ? Math.max(2, Math.min(100, (1 - d0.freeGB/d0.totalGB)*100)) : 0;
+      fill.style.width = pct.toFixed(0) + '%';
+      bar.appendChild(fill); bars.appendChild(bar); card.appendChild(bars);
+    }
+    var acts = el('div','acts');
+    var b1 = el('button','icon', n.frozen ? '▶' : 'II');
+    b1.title = n.frozen ? '恢复' : '冻结';
+    b1.onclick = function(ev){ ev.stopPropagation(); act('freeze'); };
+    var b2 = el('button','icon','R'); b2.title='更新代理';
+    b2.onclick = function(ev){ ev.stopPropagation(); act('update'); };
+    var b3 = el('button','icon','X'); b3.title='卸载';
+    b3.onclick = function(ev){ ev.stopPropagation(); act('purge'); };
+    acts.appendChild(b1); acts.appendChild(b2); acts.appendChild(b3);
+    card.appendChild(acts);
+    card.onclick = function(){ S.selected = n.id; renderNodes(); renderDrawer(); loadHistory(); };
+    box.appendChild(card);
+  });
+}
+
+var QUICK = {
+  disk:  { label:'磁盘',      cmd:'Get-PSDrive -PSProvider FileSystem | Select-Object Name,@{n="UsedGB";e={[math]::Round($_.Used/1GB,1)}},@{n="FreeGB";e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize' },
+  big:   { label:'大文件',    cmd:'Get-ChildItem C:\\ -File -Force -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 15 @{n="GB";e={[math]::Round($_.Length/1GB,2)}},FullName | Format-Table -AutoSize' },
+  proc:  { label:'进程 TOP',  cmd:'Get-Process | Sort-Object WS -Descending | Select-Object -First 15 Name,@{n="MB";e={[math]::Round($_.WS/1MB)}} | Format-Table -AutoSize' },
+  svc:   { label:'服务',      cmd:'Get-Service | Where-Object {$_.Status -eq "Running"} | Select-Object -First 25 Name,DisplayName | Format-Table -AutoSize' },
+  boot:  { label:'启动项',    cmd:'Get-CimInstance Win32_StartupCommand | Select-Object Name,Command | Format-Table -AutoSize' },
+  soft:  { label:'已装软件',  cmd:'Get-ItemProperty "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*","HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*" -ErrorAction SilentlyContinue | Where-Object DisplayName | Select-Object DisplayName,DisplayVersion | Sort-Object DisplayName | Format-Table -AutoSize' },
+  info:  { label:'系统信息',  cmd:'"主机: " + $env:COMPUTERNAME; (Get-CimInstance Win32_OperatingSystem) | Select-Object Caption,Version,LastBootUpTime | Format-List; Get-Volume | Where-Object DriveLetter | Select-Object DriveLetter,@{n="FreeGB";e={[math]::Round($_.SizeRemaining/1GB,1)}} | Format-Table' },
+  temp:  { label:'清临时目录', cmd:'$f=0; foreach($p in @("$env:WINDIR\\Temp","$env:LOCALAPPDATA\\Temp")){ if(Test-Path $p){ $f+=(Get-ChildItem $p -Recurse -File -Force -EA SilentlyContinue|Measure-Object Length -Sum).Sum; Remove-Item "$p\\*" -Recurse -Force -EA SilentlyContinue } }; "释放 {0:N2} GB" -f ($f/1GB)', confirm:true }
+};
+
+function renderDrawer(){
+  var d=$('#drawer'); d.innerHTML='';
+  var n=null; S.nodes.forEach(function(x){ if(x.id===S.selected) n=x; });
+  if(!n){ d.appendChild(el('div','sec','选一台机器')); return; }
+  var m=n.metrics||{};
+
+  var s1=el('div','sec');
+  s1.appendChild(el('h4',null,'机器'));
+  var kv=el('div','kv');
+  [['名称', n.label], ['主机', m.hostname||'—'], ['用户', m.user||'—'], ['系统', m.platform||'—'],
+   ['在线', n.online?'是':'否'], ['心跳', n.lastSeen ? new Date(n.lastSeen).toLocaleTimeString() : '—'],
+   ['内存', (m.memFreeGB!=null ? m.memFreeGB + ' / ' + m.memTotalGB + ' GB' : '—')],
+   ['运行', (m.uptimeSec!=null ? Math.floor(m.uptimeSec/3600) + ' 小时' : '—')]].forEach(function(pair){
+     kv.appendChild(el('div','k',pair[0])); kv.appendChild(el('div',null,pair[1]));
+  });
+  s1.appendChild(kv);
+  if((m.disks||[]).length){
+    var dl=el('div','kv'); dl.style.marginTop='8px';
+    m.disks.forEach(function(dk){ dl.appendChild(el('div','k',dk.drive)); dl.appendChild(el('div',null,dk.freeGB+' G 空闲')); });
+    s1.appendChild(dl);
+  }
+  d.appendChild(s1);
+
+  var s2=el('div','sec');
+  s2.appendChild(el('h4',null,'快捷动作'));
+  var g=el('div','grid2');
+  Object.keys(QUICK).forEach(function(k){
+    var b=el('div','qa', QUICK[k].label);
+    b.onclick=function(){ quick(k); };
+    g.appendChild(b);
+  });
+  s2.appendChild(g);
+  var fp=el('div','qa','取文件…'); fp.style.marginTop='8px';
+  fp.onclick=function(){ fileGet(); };
+  s2.appendChild(fp);
+  d.appendChild(s2);
+
+  var s3=el('div','sec');
+  s3.appendChild(el('h4',null,'最近任务'));
+  var box=el('div'); box.id='taskList'; box.appendChild(el('div',null,'…'));
+  s3.appendChild(box);
+  d.appendChild(s3);
+  loadTasks();
+}
+
+async function loadTasks(){
+  if(!S.selected) return;
+  try{
+    var d=await api('/api/tasks?node='+S.selected);
+    var box=$('#taskList'); if(!box) return;
+    box.innerHTML='';
+    if(!d.tasks.length){ box.appendChild(el('div',null,'暂无')); return; }
+    d.tasks.slice(0,10).forEach(function(t){
+      var row=el('div','taskrow');
+      row.appendChild(el('span','st '+(t.status==='done'? (t.code===0?'done':'running') : t.status)));
+      row.appendChild(el('span',null, t.kind + ' · ' + (t.status||'')));
+      var tm=el('span',null, new Date(t.created).toLocaleTimeString());
+      tm.style.marginLeft='auto'; tm.style.color='#4a5468'; row.appendChild(tm);
+      box.appendChild(row);
+    });
+  }catch(e){}
+}
+
+function quick(k){
+  var q=QUICK[k]; if(!q) return;
+  if(q.confirm && !confirm('要在那台机器上清临时目录？')) return;
+  sendCommand(q.cmd, q.label);
+}
+function fileGet(){
+  var p = prompt('要取回的远端文件路径（例 C:\\Users\\Public\\a.txt）');
+  if(!p) return;
+  sendFileGet(p);
+}
+
+function newChat(){ S.items = []; renderChat(); }
+
+function renderChat(){
+  var box=$('#chatInner'); box.innerHTML='';
+  var items = S.items.filter(function(it){ return !it.nodeId || it.nodeId===S.selected; });
+  if(!items.length){
+    var e=el('div','empty');
+    e.appendChild(el('div','big','◈'));
+    e.appendChild(el('h2',null,'让它自己去那台机器上干活'));
+    e.appendChild(el('p',null,'用一句话说需求：它自己决定跑什么命令、看结果、再给结论。'));
+    var chips=el('div','chips');
+    ['看看 C 盘哪些目录最占空间','现在哪些程序吃内存最多','清一下临时目录，告诉我释放了多少','这台机器装了什么软件'].forEach(function(t){
+      var c=el('span','chip',t);
+      c.onclick=function(){ $('#prompt').value=t; $('#prompt').focus(); };
+      chips.appendChild(c);
+    });
+    e.appendChild(chips); box.appendChild(e); return;
+  }
+  items.forEach(function(it){ box.appendChild(renderItem(it)); });
+  var chat=$('#chat'); chat.scrollTop = chat.scrollHeight;
+}
+
+function renderItem(it){
+  var root=el('div','msg');
+  var u=el('div','msg user'); u.appendChild(el('div','bubble', it.prompt)); root.appendChild(u);
+
+  var bot=el('div','msg bot');
+  var h=el('div','bot-h');
+  h.appendChild(el('span','avatar'));
+  h.appendChild(el('span',null, it.kind==='cmd' ? (it.title||'直接执行') : 'DSH'));
+  var nTool=(it.steps||[]).filter(function(s){ return s.type==='tool'; }).length;
+  if(nTool){ var mtag=el('span',null,'第 '+nTool+' 步'); mtag.style.cssText='color:#5a6375;font-size:11.5px'; h.appendChild(mtag); }
+  if(it.status==='running') h.appendChild(el('span','cursor'));
+  bot.appendChild(h);
+
+  (it.steps||[]).forEach(function(st){
+    if(st.type==='answer') bot.appendChild(el('div','answer', st.text));
+    else bot.appendChild(renderStep(st));
+  });
+  if(it.error){
+    var e=el('div','answer','出错：'+it.error);
+    e.style.borderColor='#4a2630'; e.style.color='#ffc0c8'; bot.appendChild(e);
+  }
+  root.appendChild(bot);
+  return root;
+}
+
+function renderStep(st){
+  var box=el('div','step');
+  var h=el('div','h');
+  h.appendChild(el('span','tag'+(st.status==='running'?' run':''), st.status==='running'?'执行中':'执行'));
+  h.appendChild(el('code',null, st.command||''));
+  var meta = st.status==='running' ? '…'
+    : ((st.ms!=null? st.ms+' ms':'') + (st.exitCode!=null? ' · exit '+st.exitCode:''));
+  h.appendChild(el('span','meta',meta));
+  var cp=el('button','tiny','复制');
+  cp.style.cssText='padding:1px 8px;font-size:11px';
+  cp.onclick=function(ev){ ev.stopPropagation(); copyText(st.command||''); };
+  h.appendChild(cp);
+  box.appendChild(h);
+  if(st.reason) box.appendChild(el('div','why','为什么：'+st.reason));
+  var pre=el('pre',null, st.output || (st.status==='running'?'执行中…':'（无输出）'));
+  pre.style.display = st.expanded ? 'block':'none';
+  box.appendChild(pre);
+  h.onclick=function(){ st.expanded=!st.expanded; pre.style.display=st.expanded?'block':'none'; };
+  return box;
+}
+
+function copyText(t){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ toast('已复制'); }).catch(function(){ toast('复制失败'); });
+  } else { toast('浏览器不支持剪贴板'); }
+}
+
+function setMode(m){
+  S.mode=m;
+  var ms=document.querySelectorAll('.mode');
+  for(var i=0;i<ms.length;i++) ms[i].classList.toggle('on', ms[i].getAttribute('data-mode')===m);
+  $('#prompt').placeholder = m==='ai'
+    ? '告诉它要做什么，比如：看看 C 盘哪些目录最占空间'
+    : '直接写 PowerShell，比如：Get-PSDrive C';
+}
+
+function syncStop(){
+  var any=false;
+  S.items.forEach(function(it){ if(it.status==='running' && it.jobId) any=true; });
+  var b=$('#stopBtn'); if(b) b.classList.toggle('hidden', !any);
+}
+
+async function send(){
+  var text=$('#prompt').value.trim();
+  if(!text) return;
+  if(!S.selected) return toast('先选一台机器');
+  var cur=null; S.nodes.forEach(function(n){ if(n.id===S.selected) cur=n; });
+  if(!cur || !cur.online) return toast('这台机器离线了');
+
+  if(S.mode==='cmd'){ $('#prompt').value=''; $('#prompt').style.height='auto'; sendCommand(text); return; }
+
+  var item={nodeId:S.selected, prompt:text, kind:'ai', status:'running', steps:[]};
+  S.items.push(item); $('#prompt').value=''; $('#prompt').style.height='auto';
+  syncStop(); renderChat();
+  try{
+    var r=await api('/api/ai/run',{method:'POST',body:JSON.stringify({nodeId:S.selected,prompt:text})});
+    item.jobId=r.job.id; pollJob(item, r.job.id);
+  }catch(e){ item.status='error'; item.error=e.message; renderChat(); }
+}
+
+async function sendCommand(cmd, title){
+  if(!S.selected) return toast('先选一台机器');
+  var item={nodeId:S.selected, prompt: title? (title+'：'+cmd.slice(0,40)+'…') : cmd, title:title, kind:'cmd', status:'running', steps:[]};
+  S.items.push(item); renderChat();
+  try{
+    var d=await api('/api/nodes/'+S.selected+'/task',{method:'POST',body:JSON.stringify({kind:'shell',payload:{command:cmd}})});
+    item.steps.push({type:'tool',command:cmd,status:'running',taskId:d.task.id});
+    renderChat(); pollTask(item, d.task.id);
+  }catch(e){ item.status='error'; item.error=e.message; renderChat(); }
+}
+
+async function sendFileGet(path){
+  if(!S.selected) return toast('先选一台机器');
+  var item={nodeId:S.selected, prompt:'取文件：'+path, title:'取文件', kind:'cmd', status:'running', steps:[]};
+  S.items.push(item); renderChat();
+  try{
+    var d=await api('/api/nodes/'+S.selected+'/task',{method:'POST',body:JSON.stringify({kind:'file_get',payload:{path:path}})});
+    item.steps.push({type:'tool',command:'file_get '+path,status:'running',taskId:d.task.id,isFile:true,filePath:path});
+    renderChat(); pollTask(item, d.task.id);
+  }catch(e){ item.status='error'; item.error=e.message; renderChat(); }
+}
+
+async function stopRun(){
+  var running=[]; S.items.forEach(function(it){ if(it.status==='running'&&it.jobId) running.push(it); });
+  if(!running.length) return toast('没有在跑的对话');
+  for(var i=0;i<running.length;i++){ try{ await api('/api/ai/job/'+running[i].jobId+'/stop',{method:'POST'}); }catch(e){} }
+  toast('已请求停止');
+}
+
+function pollJob(item, jobId){
+  var tick=async function(){
+    try{
+      var d=await api('/api/ai/job/'+jobId);
+      var j=d.job;
+      item.steps=j.steps||[];
+      item.status=(j.status==='running'||j.status==='stopping')?'running':(j.status==='error'?'error':'done');
+      item.error=j.error||'';
+      syncStop(); renderChat();
+      if(j.status==='running'||j.status==='stopping') setTimeout(tick,900);
+      else loadTasks();
+    }catch(e){ item.status='error'; item.error=e.message; renderChat(); }
+  };
+  tick();
+}
+
+function pollTask(item, taskId){
+  var off=0, st=item.steps[0];
+  var tick=async function(){
+    try{
+      var d=await api('/api/tasks/'+taskId+'/log?offset='+off);
+      off=d.offset;
+      st.output=(st.output||'')+ (d.chunk||'');
+      if(d.status==='done'){
+        st.status='done'; st.exitCode=d.result&&d.result.code; item.status='done';
+        if(st.isFile) offerDownload(st);
+        renderChat(); loadTasks(); return;
+      }
+      renderChat(); setTimeout(tick,800);
+    }catch(e){ item.status='error'; item.error=e.message; renderChat(); }
+  };
+  tick();
+}
+
+function offerDownload(st){
+  try{
+    var b64=(st.output||'').trim();
+    if(!b64) return;
+    var bin=atob(b64), arr=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+    var blob=new Blob([arr]);
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(st.filePath||'file').split(/[\\/]/).pop();
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('已开始下载');
+  }catch(e){ toast('下载失败'); }
+}
+
+async function act(kind){
+  if(!S.selected) return toast('先选一台机器');
+  var n=null; S.nodes.forEach(function(x){ if(x.id===S.selected) n=x; });
+  if(!n) return;
+  try{
+    if(kind==='freeze'){ await api('/api/nodes/'+S.selected+'/'+(n.frozen?'resume':'freeze'),{method:'POST',body:'{}'}); toast(n.frozen?'已恢复':'已冻结'); }
+    if(kind==='update'){ if(!confirm('让这台机器更新代理并重启？')) return; await api('/api/nodes/'+S.selected+'/update',{method:'POST',body:'{}'}); toast('已下发更新'); }
+    if(kind==='purge'){ if(!confirm('远程自毁：删任务+删目录，确定？')) return; await api('/api/nodes/'+S.selected+'/purge',{method:'POST',body:'{}'}); toast('已下发卸载'); }
+    await loadNodes();
+  }catch(e){ toast(e.message); }
+}
+
+async function loadHistory(){
+  try{
+    var d=await api('/api/ai/jobs');
+    var list=(d.jobs||[]).filter(function(j){ return j.nodeId===S.selected; }).slice(0,10).reverse();
+    S.items=list.map(function(j){
+      return { nodeId:j.nodeId, prompt:j.prompt, kind:'ai',
+        status:(j.status==='running'?'running':(j.status==='error'?'error':'done')),
+        steps:j.steps||[], error:j.error||'', jobId:j.id };
+    });
+  }catch(e){ S.items=[]; }
+  syncStop(); renderChat();
+}
+
+function openEnroll(){
+  (async function(){
+    try{
+      var d=await api('/api/enroll',{method:'POST',body:'{}'});
+      var cfg=S.config||{};
+      $('#modalTitle').textContent='接入新机器';
+      var b=$('#modalBody'); b.innerHTML='';
+      var p1=el('p',null,'最快：把 DSH-Fleet-Lite-Setup.exe 拷过去双击，它会自动登记，不用填任何东西。');
+      p1.style.cssText='color:#8b94a7;font-size:13px;margin:0 0 12px';
+      var p2=el('p',null,'手动接入的话用这段（写进 fleet.json）：');
+      p2.style.cssText='color:#8b94a7;font-size:13px;margin:0 0 8px';
+      b.appendChild(p1); b.appendChild(p2);
+      b.appendChild(el('pre',null, JSON.stringify({control:d.control, token:d.token, nodeId:d.nodeId}, null, 2)));
+      if(cfg.enrollKey){
+        var p3=el('p',null,'安装包自登记钥匙：'+cfg.enrollKey);
+        p3.style.cssText='color:#5a6375;font-size:12px;margin:12px 0 0;font-family:ui-monospace';
+        b.appendChild(p3);
+      }
+      $('#modal').classList.remove('hidden');
+      copyText(JSON.stringify({control:d.control, token:d.token}));
+    }catch(e){ toast(e.message); }
+  })();
+}
+
+function closeModal(){ $('#modal').classList.add('hidden'); }
+function toggleSide(){ $('#side').classList.toggle('open'); }
+function toggleDrawer(){ S.drawer=!S.drawer; $('#app').classList.toggle('drawer-open',S.drawer); }
+
+async function boot(){
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  await loadConfig(); await loadNodes(); await loadHistory();
+  setInterval(loadNodes,4000);
+}
+
+$('#pw').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+$('#prompt').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
+$('#prompt').addEventListener('input',function(e){
+  var t=e.target; t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,210)+'px';
+});
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey && e.key.toLowerCase()==='b'){ e.preventDefault(); toggleDrawer(); }
+  if(e.key==='Escape') closeModal();
+});
+
+(function init(){
+  var saved=localStorage.getItem('fleet-token');
+  if(!saved){ showLogin(); return; }
+  S.token=saved;
+  api('/api/nodes').then(function(){ boot(); }).catch(function(){ showLogin(); });
+})();
+</script>
+</body>
+</html>

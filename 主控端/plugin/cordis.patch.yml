@@ -1,0 +1,4 @@
+# DSH Fleet 远程机器面板
+# 只有一行：把插件行插进 profile 的插件树。
+- id: fleet-panel
+  name: 'dsh-fleet-plugin'

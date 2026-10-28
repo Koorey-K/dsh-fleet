@@ -1,0 +1,31 @@
+﻿改地址 / 换令牌 / 诊断（在被控端机器上跑）
+================================================
+
+一、先诊断（不改任何东西）
+   右键 switch-control.cmd →「以管理员身份运行」→ 直接回车跳过输入？
+   更准确的做法：命令行执行
+     powershell -ExecutionPolicy Bypass -File switch-control.ps1 -Diagnose
+
+   它会自动在注册表、计划任务、常见目录、磁盘浅层里找 fleet.json，然后打印：
+     - 找到的路径 / 当前 control / label / token
+     - 指挥端能不能连上
+     - agent.log 最后几行
+   如果直接报「找不到 fleet.json —— 代理没装上」，那就是安装没成功，
+   不是地址问题，重装即可。
+
+二、改地址 / 换令牌
+   switch-control.cmd http://192.168.16.8:7800 你的令牌
+   或双击后按提示输入。它会：测连通 → 改 fleet.json → 重启计划任务 → 打印日志尾巴。
+
+三、改了哪些字段
+   C:\Program Files\DSH Fleet\fleet\fleet.json
+     control   指挥端地址（必须那台机器能访问）
+     token     节点令牌（面板右上「接入令牌」生成）
+     label     面板显示名
+
+四、连不上按顺序查
+   1. 那台机器浏览器打开 http://192.168.16.8:7800/ 能不能出登录页
+   2. 打不开 → 不同网段 / 指挥端防火墙（管理员）：
+        netsh advfirewall firewall add rule name="DSH Fleet 7800" dir=in action=allow protocol=TCP localport=7800
+   3. 打得开但节点不出现 → 令牌不对，重新生成
+   4. 都对还不出现 → 看 C:\Program Files\DSH Fleet\fleet\logs\agent.log

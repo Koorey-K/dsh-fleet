@@ -1,0 +1,30 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallApp
+ShowInstallProgramWindow=1
+HideExtractAnimation=0
+UseLongFileName=1
+InsideCompressed=0
+CAB_FixedSize=0
+CAB_ResvCodeSigning=0
+RebootMode=N
+InstallPrompt=
+DisplayLicense=
+FinishMessage=
+TargetName=F:\dsh-fleet\dist\_iex-test.exe
+FriendlyName=DSH Fleet Node
+AppLaunched=install.cmd
+PostInstallCmd=<None>
+AdminQuietInstCmd=install.cmd /S
+UserQuietInstCmd=
+SourceFiles=SourceFiles
+[Strings]
+FILE0="payload.zip"
+FILE1="install.cmd"
+[SourceFiles]
+SourceFiles0=F:\dsh-fleet\dist\
+[SourceFiles0]
+%FILE0%=
+%FILE1%=
