@@ -42,7 +42,8 @@ AI 在主控端跑，被控端只"领任务、执行、回结果"——所以包
 
 ## 一键部署
 
-```powershell
+`powershell
+git clone https://github.com/Koorey-K/dsh-fleet.git F:\dsh-fleet
 cd F:\dsh-fleet
 powershell -ExecutionPolicy Bypass -File 一键部署.ps1 -ApiKey sk-xxx -WithPlugin -Firewall
 ```
